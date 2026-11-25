@@ -1,6 +1,10 @@
 import { Clock, Compass, Maximize2, Minimize2, Moon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CelestialArena3D } from './components/CelestialArena3D';
+import {
+  CelestialArena3D,
+  type AspectFilterMode,
+  type ViewCoordinateMode,
+} from './components/CelestialArena3D';
 import { MarketBriefing } from './components/MarketBriefing';
 import {
   TimelineController,
@@ -26,6 +30,12 @@ export function App() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState<PlaybackSpeedDaysPerSec>(7);
   const [playbackReverse, setPlaybackReverse] = useState(false);
+
+  // Lifted 3D Astrolabe scene filter & coordinate state (controlled from left 1/3 pane)
+  const [aspectFilter, setAspectFilter] = useState<AspectFilterMode>('ALL');
+  const [macroOnly, setMacroOnly] = useState(false);
+  const [showShadowZones, setShowShadowZones] = useState(true);
+  const [viewMode, setViewMode] = useState<ViewCoordinateMode>('GEOCENTRIC');
 
   const clampDate = useCallback(
     (d: Date) => {
@@ -123,27 +133,51 @@ export function App() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#07090E] text-[#E6ECF5] flex flex-col">
-      {/* Top Institutional Macro Terminal Bar */}
-      <header className="border-b border-[#C8A45D]/25 bg-[#090C14]/95 px-4 py-2.5 sm:px-6">
-        <div className="mx-auto flex max-w-[1680px] flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded border border-[#C8A45D]/60 bg-[#121826] text-[#F3DC9F]">
-              <Compass className="h-4.5 w-4.5" />
+    <div className="min-h-screen lg:h-screen lg:overflow-hidden bg-[#07090E] text-[#E6ECF5] flex flex-col lg:grid lg:grid-cols-3">
+      {/* LEFT 1/3 PANE: Command Controls, Timeline Dock & Market Intelligence Deck */}
+      <aside
+        aria-label="Control Pane and Market Cycle Telemetry"
+        className="min-w-0 lg:col-span-1 lg:h-screen flex flex-col border-b lg:border-b-0 lg:border-r border-[#C8A45D]/25 bg-[#080B12] lg:overflow-hidden"
+      >
+        {/* Pinned Top Brand, Lunar Phase, UTC Clock & Fullscreen Bar */}
+        <header className="shrink-0 border-b border-[#C8A45D]/25 bg-[#090C14]/95 px-3.5 py-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[#C8A45D]/60 bg-[#121826] text-[#F3DC9F]">
+                <Compass className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <h1 className="truncate text-xs sm:text-sm font-bold tracking-wider text-[#F3DC9F]">
+                  ASTRALIS <span className="text-[#C8A45D]/60">//</span> MARKET CYCLE TERMINAL
+                </h1>
+                <p className="truncate text-[10px] text-slate-400">
+                  Geocentric Tropical Astrolabe · Quantitative Regime Telemetry
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-sm sm:text-base font-bold tracking-wider text-[#F3DC9F]">
-                ASTRALIS <span className="text-[#C8A45D]/60">//</span> 3D EPHEMERIS &amp; MARKET CYCLE TERMINAL
-              </h1>
-              <p className="text-[11px] text-slate-400">
-                True Geocentric Tropical Ecliptic Astrolabe · Quantitative Cycle &amp; Liquidity Regime Telemetry
-              </p>
-            </div>
+
+            <button
+              id="toggle-fullscreen-btn"
+              type="button"
+              onClick={toggleFullscreen}
+              className="shrink-0 flex items-center gap-1 rounded border border-[#C8A45D]/50 bg-[#141C2E] px-2 py-1 font-mono-tabular text-[10.5px] font-semibold text-[#F3DC9F] hover:border-[#F3DC9F] cursor-pointer"
+              title="Toggle Browser Fullscreen"
+            >
+              {isFullscreen ? (
+                <>
+                  <Minimize2 className="h-3 w-3" /> EXIT
+                </>
+              ) : (
+                <>
+                  <Maximize2 className="h-3 w-3" /> FULL
+                </>
+              )}
+            </button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 font-mono-tabular text-xs">
-            <div className="flex items-center gap-1.5 rounded border border-slate-800 bg-[#0D1320] px-2.5 py-1 text-slate-300">
-              <Moon className="h-3.5 w-3.5 text-[#C8A45D]" />
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-1.5 font-mono-tabular text-[11px]">
+            <div className="flex items-center gap-1.5 rounded border border-slate-800 bg-[#0D1320] px-2 py-0.5 text-slate-300">
+              <Moon className="h-3 w-3 text-[#C8A45D]" />
               <span>{snapshot.lunar.phaseName}</span>
               <span className="text-slate-500">·</span>
               <span className="text-[#F3DC9F]">
@@ -151,69 +185,68 @@ export function App() {
               </span>
             </div>
 
-            <div className="flex items-center gap-1.5 rounded border border-[#C8A45D]/35 bg-[#101624] px-3 py-1 text-[#F3DC9F]">
-              <Clock className="h-3.5 w-3.5 text-[#C8A45D]" />
+            <div className="flex items-center gap-1.5 rounded border border-[#C8A45D]/35 bg-[#101624] px-2.5 py-0.5 text-[#F3DC9F]">
+              <Clock className="h-3 w-3 text-[#C8A45D]" />
               <span>
                 {currentDate.toISOString().replace('T', ' ').slice(0, 19)} UTC
               </span>
             </div>
-
-            <button
-              id="toggle-fullscreen-btn"
-              type="button"
-              onClick={toggleFullscreen}
-              className="flex items-center gap-1.5 rounded border border-[#C8A45D]/50 bg-[#141C2E] px-2.5 py-1 font-semibold text-[#F3DC9F] hover:border-[#F3DC9F] cursor-pointer"
-              title="Toggle Browser Fullscreen"
-            >
-              {isFullscreen ? (
-                <>
-                  <Minimize2 className="h-3.5 w-3.5" /> EXIT FULLSCREEN
-                </>
-              ) : (
-                <>
-                  <Maximize2 className="h-3.5 w-3.5" /> FULLSCREEN
-                </>
-              )}
-            </button>
           </div>
-        </div>
-      </header>
+        </header>
 
-      {/* Centerpiece Hero (~68-70vh): Interactive 3D Celestial Astrolabe */}
-      <CelestialArena3D
-        snapshot={snapshot}
-        selectedBody={selectedBody}
-        onSelectBody={setSelectedBody}
-        onJumpToDate={handleSetDate}
-      />
+        {/* Pinned +-5-Year Timeline Scrubber & 3D Scene Filter Dock */}
+        <TimelineController
+          currentDate={currentDate}
+          referenceNow={referenceNow}
+          onChangeDate={handleSetDate}
+          isPlaying={isPlaying}
+          onTogglePlay={() => setIsPlaying((p) => !p)}
+          playbackSpeed={playbackSpeed}
+          onChangeSpeed={setPlaybackSpeed}
+          playbackReverse={playbackReverse}
+          onToggleReverse={() => setPlaybackReverse((r) => !r)}
+          bookmarks={bookmarks}
+          aspectFilter={aspectFilter}
+          onChangeAspectFilter={setAspectFilter}
+          macroOnly={macroOnly}
+          onToggleMacroOnly={() => setMacroOnly((v) => !v)}
+          showShadowZones={showShadowZones}
+          onToggleShadowZones={() => setShowShadowZones((v) => !v)}
+          viewMode={viewMode}
+          onToggleViewMode={() =>
+            setViewMode((m) => (m === 'GEOCENTRIC' ? 'HELIOCENTRIC' : 'GEOCENTRIC'))
+          }
+        />
 
-      {/* Persistent +-5-Year Timeline Scrubber & Simulation Dock */}
-      <TimelineController
-        currentDate={currentDate}
-        referenceNow={referenceNow}
-        onChangeDate={handleSetDate}
-        isPlaying={isPlaying}
-        onTogglePlay={() => setIsPlaying((p) => !p)}
-        playbackSpeed={playbackSpeed}
-        onChangeSpeed={setPlaybackSpeed}
-        playbackReverse={playbackReverse}
-        onToggleReverse={() => setPlaybackReverse((r) => !r)}
-        bookmarks={bookmarks}
-      />
+        {/* Pinned Executive Posture + Cockpit Tabs + Scrollable Intelligence Modules */}
+        <MarketBriefing
+          snapshot={snapshot}
+          briefing={briefing}
+          radarEvents={radarEvents}
+          selectedBody={selectedBody}
+          onSelectBody={setSelectedBody}
+          onJumpToDate={handleSetDate}
+        />
 
-      {/* Below-the-Fold Market Cycle Intelligence Briefing */}
-      <MarketBriefing
-        snapshot={snapshot}
-        briefing={briefing}
-        radarEvents={radarEvents}
-        selectedBody={selectedBody}
-        onSelectBody={setSelectedBody}
-        onJumpToDate={handleSetDate}
-      />
+        {/* Slim Institutional Attribution Footer */}
+        <footer className="shrink-0 border-t border-slate-800/80 bg-[#06080D] px-3.5 py-1.5 text-center font-mono-tabular text-[9.5px] text-slate-500 truncate">
+          VSOP87 / JPL DE405 Geocentric Ephemeris · Non-Horoscopic Cycle Analytics
+        </footer>
+      </aside>
 
-      <footer className="mt-auto border-t border-slate-800/80 bg-[#06080D] px-6 py-4 text-center font-mono-tabular text-[11px] text-slate-500">
-        ASTRALIS TERMINAL · Powered by VSOP87 / JPL DE405 Geocentric Tropical Ephemeris (`astronomy-engine`) · Strictly Non-Horoscopic Quantitative Cycle Analytics
-      </footer>
+      {/* RIGHT 2/3 PANE: Full-Bleed 100vh Grand 3D Celestial Astrolabe */}
+      <div className="min-w-0 lg:col-span-2 lg:h-screen relative bg-[#07090E]">
+        <CelestialArena3D
+          snapshot={snapshot}
+          selectedBody={selectedBody}
+          onSelectBody={setSelectedBody}
+          onJumpToDate={handleSetDate}
+          aspectFilter={aspectFilter}
+          macroOnly={macroOnly}
+          showShadowZones={showShadowZones}
+          viewMode={viewMode}
+        />
+      </div>
     </div>
   );
 }

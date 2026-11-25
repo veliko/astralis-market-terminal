@@ -4,13 +4,8 @@ import { Bloom, EffectComposer } from '@react-three/postprocessing';
 import {
   Compass,
   Eye,
-  Filter,
   Focus,
-  Globe,
   Layers,
-  Orbit,
-  Sparkles,
-  SunMedium,
   X,
 } from 'lucide-react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -36,6 +31,10 @@ interface CelestialArena3DProps {
   selectedBody: BodyId | null;
   onSelectBody: (body: BodyId | null) => void;
   onJumpToDate: (date: Date) => void;
+  aspectFilter: AspectFilterMode;
+  macroOnly: boolean;
+  showShadowZones: boolean;
+  viewMode: ViewCoordinateMode;
 }
 
 const BEZEL_INNER = 22.0;
@@ -300,17 +299,28 @@ function CameraRig({
   presetTrigger: { mode: 'PERSPECTIVE' | 'TOPDOWN'; seq: number };
   controlsRef: React.RefObject<OrbitControlsImpl | null>;
 }) {
-  const { camera } = useThree();
+  const { camera, size } = useThree();
   const targetPos = useRef<THREE.Vector3 | null>(null);
+  const didInitRef = useRef(false);
 
   useEffect(() => {
+    const aspect = Math.max(0.75, size.width / Math.max(1, size.height));
+    if (!didInitRef.current) {
+      didInitRef.current = true;
+      const scale = Math.max(1, 1.68 / aspect);
+      camera.position.set(0, 31.5 * scale, 34.5 * scale);
+      camera.updateProjectionMatrix();
+      return;
+    }
     if (presetTrigger.seq === 0) return;
     if (presetTrigger.mode === 'TOPDOWN') {
-      targetPos.current = new THREE.Vector3(0, 47, 0.01);
+      const topY = 74 * Math.max(1, 1.05 / aspect);
+      targetPos.current = new THREE.Vector3(0, topY, 0.01);
     } else {
-      targetPos.current = new THREE.Vector3(0, 30.5, 33.5);
+      const scale = Math.max(1, 1.68 / aspect);
+      targetPos.current = new THREE.Vector3(0, 31.5 * scale, 34.5 * scale);
     }
-  }, [presetTrigger]);
+  }, [presetTrigger, size.width, size.height, camera]);
 
   useFrame((_, delta) => {
     if (!targetPos.current) return;
@@ -716,7 +726,7 @@ function AstrolabeScene({
   return (
     <>
       <color attach="background" args={['#07090E']} />
-      <fog attach="fog" args={['#07090E', 50, 96]} />
+      <fog attach="fog" args={['#07090E', 65, 140]} />
 
       <ambientLight intensity={0.68} />
       <pointLight position={[0, 18, 8]} intensity={1.8} color="#FFF3D6" />
@@ -731,7 +741,7 @@ function AstrolabeScene({
         enableDamping
         dampingFactor={0.07}
         minDistance={12}
-        maxDistance={64}
+        maxDistance={96}
         maxPolarAngle={Math.PI * 0.475}
         minPolarAngle={0.04}
       />
@@ -1007,11 +1017,11 @@ export const CelestialArena3D: React.FC<CelestialArena3DProps> = ({
   selectedBody,
   onSelectBody,
   onJumpToDate,
+  aspectFilter,
+  macroOnly,
+  showShadowZones,
+  viewMode,
 }) => {
-  const [aspectFilter, setAspectFilter] = useState<AspectFilterMode>('ALL');
-  const [macroOnly, setMacroOnly] = useState(false);
-  const [showShadowZones, setShowShadowZones] = useState(true);
-  const [viewMode, setViewMode] = useState<ViewCoordinateMode>('GEOCENTRIC');
   const [labelDensity, setLabelDensity] = useState<LabelDensityMode>('FULL');
   const [cameraPreset, setCameraPreset] = useState<{
     mode: 'PERSPECTIVE' | 'TOPDOWN';
@@ -1169,95 +1179,25 @@ export const CelestialArena3D: React.FC<CelestialArena3DProps> = ({
     <section
       id="celestial-arena-viewport"
       aria-label="Interactive 3D Celestial Astrolabe"
-      className="relative w-full h-[68vh] min-h-[520px] max-h-[820px] border-b border-[#C8A45D]/25 bg-[#07090E] overflow-hidden select-none"
+      className="relative w-full h-[65vh] min-h-[480px] lg:h-full lg:min-h-0 bg-[#07090E] overflow-hidden select-none"
     >
-      {/* Top-Left Layer & Aspect Filter Controls Bar (z-20 above 3D HUD badges) */}
-      <div className="pointer-events-none absolute top-3 left-3 right-3 z-20 flex flex-wrap items-start justify-between gap-2">
-        <div className="pointer-events-auto flex flex-wrap items-center gap-1.5 rounded-md border border-slate-800/90 bg-[#0B0F17]/92 px-2.5 py-1.5 backdrop-blur-md shadow-xl">
-          <span className="mr-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-[#C8A45D]">
-            <Filter className="h-3 w-3" /> Filters
-          </span>
-
-          <button
-            id="filter-all-aspects"
-            type="button"
-            onClick={() => setAspectFilter('ALL')}
-            className={`rounded px-2 py-1 text-[11px] font-medium transition cursor-pointer ${
-              aspectFilter === 'ALL'
-                ? 'bg-[#C8A45D]/20 text-[#F3DC9F] border border-[#C8A45D]/60'
-                : 'text-slate-400 hover:text-slate-200 border border-transparent'
-            }`}
-          >
-            All Aspects
-          </button>
-
-          <button
-            id="filter-hard-aspects"
-            type="button"
-            onClick={() =>
-              setAspectFilter(aspectFilter === 'HARD_ONLY' ? 'ALL' : 'HARD_ONLY')
-            }
-            className={`rounded px-2 py-1 text-[11px] font-medium transition cursor-pointer ${
-              aspectFilter === 'HARD_ONLY'
-                ? 'bg-red-500/20 text-red-300 border border-red-500/50'
-                : 'text-slate-400 hover:text-slate-200 border border-transparent'
-            }`}
-          >
-            Hard / Volatility Only (0°, 90°, 180°)
-          </button>
-
-          <div className="h-3.5 w-[1px] bg-slate-800 mx-0.5" />
-
-          <button
-            id="filter-macro-only"
-            type="button"
-            onClick={() => setMacroOnly((v) => !v)}
-            className={`flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium transition cursor-pointer ${
-              macroOnly
-                ? 'bg-amber-500/20 text-amber-200 border border-amber-500/50'
-                : 'text-slate-400 hover:text-slate-200 border border-transparent'
-            }`}
-          >
-            <Orbit className="h-3 w-3" /> Macro / Slow Planets Only
-          </button>
-
-          <button
-            id="filter-shadow-zones"
-            type="button"
-            onClick={() => setShowShadowZones((v) => !v)}
-            className={`flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium transition cursor-pointer ${
-              showShadowZones
-                ? 'bg-rose-500/15 text-rose-200 border border-rose-500/45'
-                : 'text-slate-400 hover:text-slate-200 border border-transparent'
-            }`}
-          >
-            <Sparkles className="h-3 w-3" /> Show Shadow Zones
-          </button>
-
-          <div className="h-3.5 w-[1px] bg-slate-800 mx-0.5" />
-
-          <button
-            id="toggle-coordinate-view"
-            type="button"
-            onClick={() =>
-              setViewMode((m) => (m === 'GEOCENTRIC' ? 'HELIOCENTRIC' : 'GEOCENTRIC'))
-            }
-            className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-[11px] font-semibold transition cursor-pointer ${
-              viewMode === 'HELIOCENTRIC'
-                ? 'bg-sky-500/20 text-sky-200 border border-sky-400/60'
-                : 'bg-[#131B2A] text-[#E3C582] border border-[#C8A45D]/40 hover:border-[#E3C582]'
-            }`}
-          >
-            {viewMode === 'GEOCENTRIC' ? (
-              <>
-                <Globe className="h-3.5 w-3.5 text-sky-400" /> Geocentric Arena
-              </>
-            ) : (
-              <>
-                <SunMedium className="h-3.5 w-3.5 text-amber-400" /> Heliocentric + Sightline View
-              </>
-            )}
-          </button>
+      {/* Top Overlay: Optional Heliocentric Banner (left) + Minimal Camera & HUD Pills (right) */}
+      <div className="pointer-events-none absolute top-3 left-3 right-3 z-20 flex items-start justify-between gap-2">
+        <div>
+          {viewMode === 'HELIOCENTRIC' && (
+            <div className="pointer-events-none max-w-md rounded border border-sky-500/40 bg-[#08111E]/92 px-3 py-2 text-xs text-sky-100 backdrop-blur-md shadow-xl">
+              <div className="font-semibold text-sky-300">
+                Heliocentric + Earth Sightline Mode Active
+              </div>
+              <p className="mt-0.5 text-[11px] leading-relaxed text-slate-300">
+                Dashed sightlines project from <span className="text-sky-300">⊕ Earth</span>{' '}
+                through each planet onto the outer 360° Tropical Zodiac Bezel. Scrub or play at{' '}
+                <span className="font-mono-tabular text-[#F3DC9F]">7d/s</span> to watch Earth
+                overtake outer/inner tracks and produce apparent retrograde (
+                <span className="text-red-400">Rx</span>) loops.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Top-Right Camera & HUD Label Controls */}
@@ -1301,24 +1241,9 @@ export const CelestialArena3D: React.FC<CelestialArena3DProps> = ({
         </div>
       </div>
 
-      {/* Heliocentric Educational Banner */}
-      {viewMode === 'HELIOCENTRIC' && (
-        <div className="pointer-events-none absolute top-15 left-3 z-20 max-w-md rounded border border-sky-500/40 bg-[#08111E]/92 px-3 py-2 text-xs text-sky-100 backdrop-blur-md">
-          <div className="font-semibold text-sky-300">
-            Heliocentric + Earth Sightline Mode Active
-          </div>
-          <p className="mt-0.5 text-[11px] leading-relaxed text-slate-300">
-            Dashed sightlines project from <span className="text-sky-300">⊕ Earth</span> through
-            each planet onto the outer 360° Tropical Zodiac Bezel. Scrub or play at{' '}
-            <span className="font-mono-tabular text-[#F3DC9F]">7d/s</span> to watch Earth overtake
-            outer/inner tracks and produce apparent retrograde (<span className="text-red-400">Rx</span>) loops.
-          </p>
-        </div>
-      )}
-
       {/* Selected Planet Telemetry & Shadow Inspector Card (z-30) */}
       {focusedDetail && (
-        <aside className="pointer-events-auto absolute top-15 right-3 z-30 w-80 rounded-md border border-[#C8A45D]/55 bg-[#0B0F17]/96 p-3.5 backdrop-blur-md shadow-2xl">
+        <aside className="pointer-events-auto absolute top-14 right-3 z-30 w-80 rounded-md border border-[#C8A45D]/55 bg-[#0B0F17]/96 p-3.5 backdrop-blur-md shadow-2xl">
           <div className="flex items-start justify-between gap-2 border-b border-slate-800 pb-2">
             <div>
               <div className="flex items-center gap-2">
