@@ -1,11 +1,24 @@
-import { Clock, Compass, Maximize2, Minimize2, Moon } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ArrowDownUp,
+  Clock,
+  Compass,
+  Layers,
+  Maximize2,
+  Minimize2,
+  Moon,
+  Pause,
+  Play,
+  Radio,
+  SlidersHorizontal,
+  TrendingUp,
+} from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CelestialArena3D,
   type AspectFilterMode,
   type ViewCoordinateMode,
 } from './components/CelestialArena3D';
-import { MarketBriefing } from './components/MarketBriefing';
+import { MarketBriefing, type IntelligenceTab } from './components/MarketBriefing';
 import {
   TimelineController,
   type PlaybackSpeedDaysPerSec,
@@ -21,10 +34,13 @@ import { translateSnapshotToMarketRegime } from './lib/marketRegime';
 const MS_PER_DAY = 86_400_000;
 const FIVE_YEARS_MS = 5 * 365.25 * MS_PER_DAY;
 
+type WorkspaceTab = 'CONTROLS' | IntelligenceTab;
+
 export function App() {
   const [referenceNow] = useState<Date>(() => new Date());
   const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
   const [selectedBody, setSelectedBody] = useState<BodyId | null>(null);
+  const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>('CONTROLS');
 
   // Time-lapse simulation transport state
   const [isPlaying, setIsPlaying] = useState(false);
@@ -132,35 +148,92 @@ export function App() {
     }
   }, []);
 
+  const navItems: Array<{
+    id: WorkspaceTab;
+    shortLabel: string;
+    title: string;
+    icon: React.ComponentType<{ className?: string }>;
+    badge?: string | number;
+    dot?: boolean;
+  }> = [
+    {
+      id: 'CONTROLS',
+      shortLabel: 'CTRL',
+      title: 'Command Surface & Timeline Controls',
+      icon: SlidersHorizontal,
+    },
+    {
+      id: 'HORIZONS',
+      shortLabel: 'TIDES',
+      title: 'Executive Synthesis & Three-Horizon Breakdown',
+      icon: Layers,
+    },
+    {
+      id: 'BODIES',
+      shortLabel: 'BODIES',
+      title: '12-Body Live Geocentric Ephemeris',
+      icon: TrendingUp,
+      dot: Boolean(selectedBody),
+    },
+    {
+      id: 'ASPECTS',
+      shortLabel: 'ASPECT',
+      title: `Live Active Aspects (${snapshot.aspects.length})`,
+      icon: ArrowDownUp,
+      badge: snapshot.aspects.length,
+    },
+    {
+      id: 'RADAR',
+      shortLabel: '90D',
+      title: `Upcoming 90-Day Inflection Radar (${radarEvents.length})`,
+      icon: Radio,
+      badge: radarEvents.length,
+    },
+  ];
+
   return (
     <div className="min-h-screen lg:h-screen lg:overflow-hidden bg-[#07090E] text-[#E6ECF5] flex flex-col lg:grid lg:grid-cols-3">
-      {/* LEFT 1/3 PANE: Command Controls, Timeline Dock & Market Intelligence Deck */}
+      {/* LEFT 1/3 PANE: Slim Persistent Top Bar + Vertical Icon Rail + Full-Height Active Tab */}
       <aside
         aria-label="Control Pane and Market Cycle Telemetry"
         className="min-w-0 lg:col-span-1 lg:h-screen flex flex-col border-b lg:border-b-0 lg:border-r border-[#C8A45D]/25 bg-[#080B12] lg:overflow-hidden"
       >
-        {/* Pinned Top Brand, Lunar Phase, UTC Clock & Fullscreen Bar */}
-        <header className="shrink-0 border-b border-[#C8A45D]/25 bg-[#090C14]/95 px-3.5 py-2.5">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[#C8A45D]/60 bg-[#121826] text-[#F3DC9F]">
-                <Compass className="h-4 w-4" />
-              </div>
-              <div className="min-w-0">
-                <h1 className="truncate text-xs sm:text-sm font-bold tracking-wider text-[#F3DC9F]">
-                  ASTRALIS <span className="text-[#C8A45D]/60">//</span> MARKET CYCLE TERMINAL
-                </h1>
-                <p className="truncate text-[10px] text-slate-400">
-                  Geocentric Tropical Astrolabe · Quantitative Regime Telemetry
-                </p>
-              </div>
+        {/* Slim Persistent Single-Row Top Header */}
+        <header className="shrink-0 border-b border-[#C8A45D]/25 bg-[#090C14]/95 px-3 py-2 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded border border-[#C8A45D]/60 bg-[#121826] text-[#F3DC9F]">
+              <Compass className="h-3.5 w-3.5" />
+            </div>
+            <h1 className="truncate text-xs font-bold tracking-wider text-[#F3DC9F]">
+              ASTRALIS <span className="text-[#C8A45D]/60">//</span> TERMINAL
+            </h1>
+          </div>
+
+          <div className="flex items-center gap-1.5 font-mono-tabular text-[11px] shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsPlaying((p) => !p)}
+              title={isPlaying ? 'Pause Time-Lapse' : 'Start Time-Lapse'}
+              className={`flex items-center gap-1 rounded border px-2 py-0.5 text-[10px] font-semibold transition cursor-pointer ${
+                isPlaying
+                  ? 'border-[#F3DC9F]/80 bg-amber-500/25 text-[#F3DC9F]'
+                  : 'border-slate-800 bg-[#0D1320] text-slate-300 hover:border-[#C8A45D]/50 hover:text-[#F3DC9F]'
+              }`}
+            >
+              {isPlaying ? <Pause className="h-2.5 w-2.5" /> : <Play className="h-2.5 w-2.5" />}
+              <span>{isPlaying ? `${playbackReverse ? '-' : '+'}${playbackSpeed}d/s` : 'IDLE'}</span>
+            </button>
+
+            <div className="flex items-center gap-1 rounded border border-[#C8A45D]/35 bg-[#101624] px-2 py-0.5 text-[10.5px] text-[#F3DC9F]">
+              <Clock className="h-3 w-3 text-[#C8A45D]" />
+              <span>{currentDate.toISOString().replace('T', ' ').slice(0, 16)}Z</span>
             </div>
 
             <button
               id="toggle-fullscreen-btn"
               type="button"
               onClick={toggleFullscreen}
-              className="shrink-0 flex items-center gap-1 rounded border border-[#C8A45D]/50 bg-[#141C2E] px-2 py-1 font-mono-tabular text-[10.5px] font-semibold text-[#F3DC9F] hover:border-[#F3DC9F] cursor-pointer"
+              className="flex items-center gap-1 rounded border border-[#C8A45D]/50 bg-[#141C2E] px-2 py-0.5 text-[10px] font-semibold text-[#F3DC9F] hover:border-[#F3DC9F] cursor-pointer"
               title="Toggle Browser Fullscreen"
             >
               {isFullscreen ? (
@@ -174,64 +247,110 @@ export function App() {
               )}
             </button>
           </div>
+        </header>
 
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-1.5 font-mono-tabular text-[11px]">
-            <div className="flex items-center gap-1.5 rounded border border-slate-800 bg-[#0D1320] px-2 py-0.5 text-slate-300">
+        {/* Body Area: Vertical Icon Rail + Full-Height Active Panel */}
+        <div className="flex-1 min-h-0 flex flex-row overflow-hidden">
+          {/* Small Vertical Icon Navigation Rail */}
+          <nav
+            aria-label="Workspace Navigation Rail"
+            className="w-14 shrink-0 border-r border-[#C8A45D]/20 bg-[#06080E] py-2.5 px-1.5 flex flex-col items-center justify-between select-none"
+          >
+            <div className="w-full space-y-1.5">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                const active = workspaceTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    id={`nav-tab-${item.id.toLowerCase()}`}
+                    type="button"
+                    onClick={() => setWorkspaceTab(item.id)}
+                    title={item.title}
+                    className={`relative w-full flex flex-col items-center justify-center gap-1 rounded-md py-2 px-1 transition cursor-pointer ${
+                      active
+                        ? 'bg-[#131B2C] text-[#F3DC9F] border border-[#C8A45D]/60 shadow-[0_0_12px_rgba(200,164,93,0.18)]'
+                        : 'text-slate-400 border border-transparent hover:bg-[#0D1320] hover:text-slate-200'
+                    }`}
+                  >
+                    {active && (
+                      <span className="absolute left-0 top-1.5 bottom-1.5 w-[2.5px] rounded-r bg-[#F3DC9F]" />
+                    )}
+                    <Icon
+                      className={`h-4 w-4 ${active ? 'text-[#F3DC9F]' : 'text-[#C8A45D]/80'}`}
+                    />
+                    <span className="font-mono-tabular text-[8.5px] font-semibold tracking-tight leading-none">
+                      {item.shortLabel}
+                    </span>
+                    {item.badge !== undefined && (
+                      <span className="font-mono-tabular text-[8px] leading-none text-slate-400">
+                        {item.badge}
+                      </span>
+                    )}
+                    {item.dot && (
+                      <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-[#F3DC9F]" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Subtle Lunar Illumination Readout at Rail Foot */}
+            <div
+              title={`${snapshot.lunar.phaseName} (${snapshot.lunar.illuminationPct.toFixed(0)}% Illumination)`}
+              className="flex flex-col items-center gap-0.5 rounded border border-slate-800/80 bg-[#0A0E17] px-1.5 py-1.5 text-center"
+            >
               <Moon className="h-3 w-3 text-[#C8A45D]" />
-              <span>{snapshot.lunar.phaseName}</span>
-              <span className="text-slate-500">·</span>
-              <span className="text-[#F3DC9F]">
+              <span className="font-mono-tabular text-[8.5px] font-semibold text-[#F3DC9F] leading-none">
                 {snapshot.lunar.illuminationPct.toFixed(0)}%
               </span>
             </div>
+          </nav>
 
-            <div className="flex items-center gap-1.5 rounded border border-[#C8A45D]/35 bg-[#101624] px-2.5 py-0.5 text-[#F3DC9F]">
-              <Clock className="h-3 w-3 text-[#C8A45D]" />
-              <span>
-                {currentDate.toISOString().replace('T', ' ').slice(0, 19)} UTC
-              </span>
-            </div>
+          {/* Full-Height Tab Content Surface */}
+          <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
+            {workspaceTab === 'CONTROLS' ? (
+              <TimelineController
+                currentDate={currentDate}
+                referenceNow={referenceNow}
+                onChangeDate={handleSetDate}
+                isPlaying={isPlaying}
+                onTogglePlay={() => setIsPlaying((p) => !p)}
+                playbackSpeed={playbackSpeed}
+                onChangeSpeed={setPlaybackSpeed}
+                playbackReverse={playbackReverse}
+                onToggleReverse={() => setPlaybackReverse((r) => !r)}
+                bookmarks={bookmarks}
+                aspectFilter={aspectFilter}
+                onChangeAspectFilter={setAspectFilter}
+                macroOnly={macroOnly}
+                onToggleMacroOnly={() => setMacroOnly((v) => !v)}
+                showShadowZones={showShadowZones}
+                onToggleShadowZones={() => setShowShadowZones((v) => !v)}
+                viewMode={viewMode}
+                onChangeViewMode={setViewMode}
+                snapshot={snapshot}
+                briefing={briefing}
+                onSelectBody={setSelectedBody}
+                onOpenHorizons={() => setWorkspaceTab('HORIZONS')}
+              />
+            ) : (
+              <MarketBriefing
+                activeTab={workspaceTab}
+                snapshot={snapshot}
+                briefing={briefing}
+                radarEvents={radarEvents}
+                selectedBody={selectedBody}
+                onSelectBody={setSelectedBody}
+                onJumpToDate={handleSetDate}
+              />
+            )}
+
+            <footer className="shrink-0 border-t border-slate-800/80 bg-[#06080D] px-3.5 py-1.5 text-center font-mono-tabular text-[9.5px] text-slate-500 truncate">
+              VSOP87 / JPL DE405 Geocentric Ephemeris · Non-Horoscopic Cycle Analytics
+            </footer>
           </div>
-        </header>
-
-        {/* Pinned +-5-Year Timeline Scrubber & 3D Scene Filter Dock */}
-        <TimelineController
-          currentDate={currentDate}
-          referenceNow={referenceNow}
-          onChangeDate={handleSetDate}
-          isPlaying={isPlaying}
-          onTogglePlay={() => setIsPlaying((p) => !p)}
-          playbackSpeed={playbackSpeed}
-          onChangeSpeed={setPlaybackSpeed}
-          playbackReverse={playbackReverse}
-          onToggleReverse={() => setPlaybackReverse((r) => !r)}
-          bookmarks={bookmarks}
-          aspectFilter={aspectFilter}
-          onChangeAspectFilter={setAspectFilter}
-          macroOnly={macroOnly}
-          onToggleMacroOnly={() => setMacroOnly((v) => !v)}
-          showShadowZones={showShadowZones}
-          onToggleShadowZones={() => setShowShadowZones((v) => !v)}
-          viewMode={viewMode}
-          onToggleViewMode={() =>
-            setViewMode((m) => (m === 'GEOCENTRIC' ? 'HELIOCENTRIC' : 'GEOCENTRIC'))
-          }
-        />
-
-        {/* Pinned Executive Posture + Cockpit Tabs + Scrollable Intelligence Modules */}
-        <MarketBriefing
-          snapshot={snapshot}
-          briefing={briefing}
-          radarEvents={radarEvents}
-          selectedBody={selectedBody}
-          onSelectBody={setSelectedBody}
-          onJumpToDate={handleSetDate}
-        />
-
-        {/* Slim Institutional Attribution Footer */}
-        <footer className="shrink-0 border-t border-slate-800/80 bg-[#06080D] px-3.5 py-1.5 text-center font-mono-tabular text-[9.5px] text-slate-500 truncate">
-          VSOP87 / JPL DE405 Geocentric Ephemeris · Non-Horoscopic Cycle Analytics
-        </footer>
+        </div>
       </aside>
 
       {/* RIGHT 2/3 PANE: Full-Bleed 100vh Grand 3D Celestial Astrolabe */}
