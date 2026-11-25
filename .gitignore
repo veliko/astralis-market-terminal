@@ -1,0 +1,15 @@
+# Ignore all $HOME dotfiles/system directories by default; allowlist project files
+.*
+!.gitignore
+!.github/
+!.github/**
+
+# Standard build & dependency ignores
+node_modules/
+dist/
+dist-ssr/
+logs/
+*.log
+*.local
+upload/
+public/*.zip
