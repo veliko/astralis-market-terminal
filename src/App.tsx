@@ -192,11 +192,11 @@ export function App() {
   ];
 
   return (
-    <div className="min-h-screen lg:h-screen lg:overflow-hidden bg-[#07090E] text-[#E6ECF5] flex flex-col lg:grid lg:grid-cols-3">
-      {/* LEFT 1/3 PANE: Slim Persistent Top Bar + Vertical Icon Rail + Full-Height Active Tab */}
+    <div className="min-h-screen lg:h-screen lg:overflow-hidden bg-[#07090E] text-[#E6ECF5] flex flex-col lg:flex-row">
+      {/* LEFT 1/3 PANE (capped at 800px on ultrawide): Slim Persistent Top Bar + Vertical Icon Rail + Full-Height Active Tab */}
       <aside
         aria-label="Control Pane and Market Cycle Telemetry"
-        className="min-w-0 lg:col-span-1 lg:h-screen flex flex-col border-b lg:border-b-0 lg:border-r border-[#C8A45D]/25 bg-[#080B12] lg:overflow-hidden"
+        className="w-full lg:w-1/3 lg:max-w-[800px] lg:shrink-0 min-w-0 lg:h-screen flex flex-col border-b lg:border-b-0 lg:border-r border-[#C8A45D]/25 bg-[#080B12] lg:overflow-hidden"
       >
         {/* Slim Persistent Single-Row Top Header */}
         <header className="shrink-0 border-b border-[#C8A45D]/25 bg-[#090C14]/95 px-3 py-2 flex items-center justify-between gap-2">
@@ -353,8 +353,8 @@ export function App() {
         </div>
       </aside>
 
-      {/* RIGHT 2/3 PANE: Full-Bleed 100vh Grand 3D Celestial Astrolabe */}
-      <div className="min-w-0 lg:col-span-2 lg:h-screen relative bg-[#07090E]">
+      {/* RIGHT PANE (2/3 or all remaining width past 800px): Full-Bleed 100vh Grand 3D Celestial Astrolabe */}
+      <div className="min-w-0 flex-1 lg:h-screen relative bg-[#07090E]">
         <CelestialArena3D
           snapshot={snapshot}
           selectedBody={selectedBody}
